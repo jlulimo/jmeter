@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.jmeter.config.ConfigTestElement;
@@ -34,14 +35,19 @@ import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.samplers.Sampler;
 import org.apache.jmeter.testbeans.TestBean;
 import org.apache.jmeter.testelement.TestElement;
+import org.apache.jmeter.threads.JMeterContext;
+import org.apache.jmeter.threads.JMeterContextService;
 import org.apache.jorphan.util.JOrphanUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A sampler which understands JDBC database requests.
- *
  */
 @TestElementMetadata(labelResource = "displayName")
 public class JDBCSampler extends AbstractJDBCTestElement implements Sampler, TestBean, ConfigMergabilityIndicator {
+    private static Logger logger = LoggerFactory.getLogger(JDBCSampler.class);
+    private static AtomicInteger count = new AtomicInteger(0);
     private static final Set<String> APPLIABLE_CONFIG_CLASSES = new HashSet<>(
             Arrays.asList("org.apache.jmeter.config.gui.SimpleConfigGui"));
 
@@ -81,12 +87,15 @@ public class JDBCSampler extends AbstractJDBCTestElement implements Sampler, Tes
             } finally {
                 res.connectEnd();
             }
+            JMeterContext threadContext = JMeterContextService.getContext();
+            logger.debug("线程:{} 第{}次 执行:{}", threadContext.getThread().getThreadName(), threadContext.getVariables().getIteration(), this.getQuery());
+            logger.debug("执行sampler {} 次", count.incrementAndGet());
             res.setResponseHeaders(DataSourceElement.getConnectionInfo(getDataSource()));
             res.setResponseData(execute(conn, res));
         } catch (SQLException ex) {
             final String errCode = Integer.toString(ex.getErrorCode());
             res.setResponseMessage(ex.toString());
-            res.setResponseCode(ex.getSQLState()+ " " +errCode);
+            res.setResponseCode(ex.getSQLState() + " " + errCode);
             res.setResponseData(ex.getMessage(), res.getDataEncodingWithDefault());
             res.setSuccessful(false);
         } catch (Exception ex) {
